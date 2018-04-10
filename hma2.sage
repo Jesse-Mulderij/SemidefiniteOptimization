@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 """Sage file for Homework Assignment 2, SDP 2018, Mastermath.
 Jesse Mulderij & Cynthia Slotboom
 
@@ -576,4 +575,3 @@ def interval_minimum(p, a, b, filename):
 # Local variables:
 # mode: python
 # End:
->>>>>>> 9e9336751574f383ee326cfe40e075c880c487f1
