@@ -209,25 +209,36 @@ def normalize_matrix(A):
     return matrix(RDF, A.nrows(), A.ncols(),
                   lambda i, j: 2 * ((A[i, j] - l) / (u - l)) - 1)
 
-def objective_matrix(g,r,lda):
+def objective_matrix(A,g,r,lda):
     """Making the objective function"""
-    G = matrix(RDF, len(g)+1, len(g)+1,
-           lambda i, j: 0)
-    for i in xrange(len(g)):
-        for j in xrange(len(g)):
-            for o in xrange(len(g)):
-                for p in xrange(len(g)):
-                    if max(abs(i-o),abs(j-p))<=r:
-                        G[i,j]+=lda
+    C = matrix(RDF, A.nrows()*A.ncols()+1, A.nrows()*A.ncols()+1,
+           lambda i, j: lda*cost_function_f(A,i,j,r))
+
+    for i in range(len(g)):
+        C[i+1,0] += g[i]
+        C[0,i+1] += g[i]
+    return C
+
+def index_x_to_column_of_A(A,p):
+    """Takes the index of x and returns the corresponding column coordinate of A"""
+    return p % A.ncols()
 
 
+def index_x_to_row_of_A(A,p):
+    """Takes the index of x and returns the corresponding row coordinate of A"""
+    return (p - (p % A.ncols())) / A.ncols()
 
-
-    for i in range(A.nrows()-1):
-        G[i+1,0] += g(i)
-        G[0,i+1] += g(i)
-    return G
-
+def cost_function_f(A,i,j,r):
+    """Assigns a cost value based on the adjacency of two pixels"""
+    if i==0 or j==0:
+        return 0
+    ci = index_x_to_column_of_A(A,i-1)
+    ri = index_x_to_row_of_A(A,i-1)
+    cj = index_x_to_column_of_A(A,j-1)
+    rj = index_x_to_row_of_A(A,j-1)
+    if max(abs(ci-cj),abs(ri-rj))<=r:
+        return 1
+    return 0
 
 def sdp_filter(in_filename, out_filename, lda, r, block_size = 10,
                border_size = 2, nrounds = 30):
