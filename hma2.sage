@@ -249,6 +249,7 @@ def sdp_filter(in_filename, out_filename, lda, r, block_size = 10,
 
     - border_size -- size of border around a block, in number of
       pixels.
+      --> CAN NOT BE BIGGER THAN BLOCK_SIZE!
 
     - nrounds -- how many times the randomized rounding procedure
       should be run.
@@ -278,9 +279,80 @@ def sdp_filter(in_filename, out_filename, lda, r, block_size = 10,
     # 
     ########
 
+    # Divide the matrix into 10x10 blocks. If this is not possible, first remove some rows/columns at the edges.
+    A = make_matrix_size_divisible_by_block_size(A)
+    amount_of_hblocks = A.ncols() / block_size
+    amount_of_vblocks = A.nrows() / block_size
+
+    # For each block, save the specific block in B:
+    for hblock in range(amount_of_hblocks):
+        for vblock in range(amount_of_vblocks):
+            B = construct_current_block_matrix(A, hblock, vblock)
+
+            # Normalize the block
+
+            # Make a vector g with the values for each pixel
+
+            # Choose lambda
+
+            # Construct the sdpa file containing the optimisation problem that has to be solved.
+
+            # Solve the problem with CSDP.
+
+            # Rewrite the solution X (if necessary)
+
+            # Decompose X in w and x_i (they are the rows of X.cholesky())
+
+            # Hyperplane rounding: choose z
+
+            # Hyperplane rounding: if w*z<0, make z=-z
+
+            # Hyperplane rounding: for each pixel in the inner block, set f_i = sgn(z*x_i) --> save this in R
+
     # Save the final image.
     imsave(out_filename, R)
 
+#TODO: juiste variabelen meegeven aan deze functie en uitleg bij zetten!
+def make_matrix_size_divisible_by_block_size(A):
+    if A.ncols() % 10 != 0:
+        extra_cols = A.ncols() % 10
+        remove_first_cols = floor(extra_cols/2.0)
+        remove_last_cols = extra_cols - remove_first_cols
+        A = A.delete_columns(range(remove_first_cols))
+        A = A.delete_columns(range(A.ncols()-remove_last_cols,A.ncols()))
+    if A.nrows() % 10 != 0:
+        extra_rows = A.nrows() % 10
+        remove_first_rows = floor(extra_rows / 2.0)
+        remove_last_rows = extra_rows - remove_first_rows
+        A = A.delete_rows(range(remove_first_rows))
+        A = A.delete_rows(range(A.nrows() - remove_last_rows, A.rows()))
+    return A
+
+#TODO: juiste variabelen meegeven aan deze functie en uitleg bij zetten!
+def construct_current_block_matrix(A, hblock, vblock):
+    B = matrix(RDF, block_size + 2 * border_size, block_size + 2 * border_size)
+    if vblock != 0 and vblock != amount_of_vblocks - 1 and hblock != 0 and hblock != amount_of_hblocks:
+        B[:, :] = A[vblock * block_size - border_size:(vblock + 1) * block_size + border_size,
+                  hblock * block_size - border_size:(hblock + 1) * block_size + border_size]
+    else:
+        B[border_size:border_size + block_size, border_size:border_size + block_size] = A[vblock * block_size:(vblock + 1) * block_size, hblock * block_size:(hblock + 1) * block_size]
+        if vblock == 0:
+            if hblock == 0:
+
+            elif hblock == amount_of_hblocks - 1:
+
+            else:
+
+        elif vblock == amount_of_vblocks - 1:
+            if hblock == 0:
+
+            elif hblock == amount_of_hblocks - 1:
+
+            else:
+
+        elif hblock == 0:
+
+        else:
 
 def interval_minimum(p, a, b, filename):
     """Write SDP whose optimal is minimum of p on [a, b].
