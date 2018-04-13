@@ -23,6 +23,178 @@ import subprocess
 from scipy.misc import imread, imsave
 
 
+def sdp_filter(in_filename, out_filename, lda, r, block_size=10,
+               border_size=2, nrounds=30):
+    """Apply deblurring sdp filter to image.
+
+    INPUT:
+
+    - in_filename -- name of input image.
+
+    - out_filename -- name of output image.
+
+    - lda -- lambda parameter.
+
+    - r -- pixels (a, b) and (ap, bp) are considered neighbors if
+      max { |a - ap|, |b - bp| } <= r.
+
+    - block_size -- size of block for image segmentation, in number of
+      pixels.
+
+    - border_size -- size of border around a block, in number of
+      pixels.
+      --> CAN NOT BE BIGGER THAN BLOCK_SIZE!
+
+    - nrounds -- how many times the randomized rounding procedure
+      should be run.
+
+    """
+    # Read the image. The matrix returned has real numbers in the
+    # interval [0, 255].
+    A = matrix(RDF, imread(in_filename, flatten=True))
+
+    # Matrix with resulting binary image, to be filled by you.
+    R = matrix(ZZ, A.nrows(), A.ncols())
+
+    ########
+    #
+    # Here should come your code. It should assemble the final image
+    # in the matrix R. Each pixel has a value of either 0 (black) or
+    # 255 (white).
+    #
+    # IMPORTANT:
+    #
+    # Recall that the matrix A you read has numbers in [0, 255]. Our
+    # approach expects numbers in the interval [-1, 1]. To get that,
+    # you normalize each block before processing it. If B is the
+    # block, use the function normalize matrix:
+    #
+    # C = normalize_matrix(B)
+    #
+    ########
+
+    # Divide the matrix into 10x10 blocks. If this is not possible, first remove some rows/columns at the edges.
+    A = make_matrix_size_divisible_by_block_size(A)
+    amount_of_hblocks = A.ncols() / block_size
+    amount_of_vblocks = A.nrows() / block_size
+
+    # For each block, save the specific block in B:
+    for hblock in range(amount_of_hblocks):
+        for vblock in range(amount_of_vblocks):
+            B = construct_current_block_matrix(A, hblock, vblock)
+
+            # Normalize the block
+
+            # Make a vector g with the values for each pixel
+
+            # Choose lambda
+
+            # Construct the sdpa file containing the optimisation problem that has to be solved.
+
+            # Solve the problem with CSDP.
+
+            # Rewrite the solution X (if necessary)
+
+            # Decompose X in w and x_i (they are the rows of X.cholesky())
+
+            # Hyperplane rounding: choose z
+
+            # Hyperplane rounding: if w*z<0, make z=-z
+
+            # Hyperplane rounding: for each pixel in the inner block, set f_i = sgn(z*x_i) --> save this in R
+
+    # Save the final image.
+    imsave(out_filename, R)
+
+#TODO: juiste variabelen meegeven aan deze functie en uitleg bij zetten!
+def make_matrix_size_divisible_by_block_size(A):
+    if A.ncols() % 10 != 0:
+        extra_cols = A.ncols() % 10
+        remove_first_cols = floor(extra_cols/2.0)
+        remove_last_cols = extra_cols - remove_first_cols
+        A = A.delete_columns(range(remove_first_cols))
+        A = A.delete_columns(range(A.ncols()-remove_last_cols,A.ncols()))
+    if A.nrows() % 10 != 0:
+        extra_rows = A.nrows() % 10
+        remove_first_rows = floor(extra_rows / 2.0)
+        remove_last_rows = extra_rows - remove_first_rows
+        A = A.delete_rows(range(remove_first_rows))
+        A = A.delete_rows(range(A.nrows() - remove_last_rows, A.rows()))
+    return A
+
+#TODO: juiste variabelen meegeven aan deze functie en uitleg bij zetten!
+def construct_current_block_matrix(A, hblock, vblock):
+    B = matrix(RDF, block_size + 2 * border_size, block_size + 2 * border_size)
+    if vblock != 0 and vblock != amount_of_vblocks - 1 and hblock != 0 and hblock != amount_of_hblocks:
+        B[:, :] = A[vblock * block_size - border_size:(vblock + 1) * block_size + border_size,
+                  hblock * block_size - border_size:(hblock + 1) * block_size + border_size]
+    else:
+        B[border_size:border_size + block_size, border_size:border_size + block_size] = A[vblock * block_size:(vblock + 1) * block_size, hblock * block_size:(hblock + 1) * block_size]
+        if vblock == 0:
+            if hblock == 0:
+
+            elif hblock == amount_of_hblocks - 1:
+
+            else:
+
+        elif vblock == amount_of_vblocks - 1:
+            if hblock == 0:
+
+            elif hblock == amount_of_hblocks - 1:
+
+            else:
+
+        elif hblock == 0:
+
+        else:
+
+def normalize_matrix(A):
+    """Normalize matrix elements to [-1, 1]."""
+
+    l = min(A.list())
+    u = max(A.list())
+
+    if l == u:
+        if l <= 127:
+            return matrix(RDF, A.nrows(), A.ncols(),
+                          lambda i, j: -1)
+        else:
+            return matrix(RDF, A.nrows(), A.ncols(),
+                          lambda i, j: 1)
+
+    return matrix(RDF, A.nrows(), A.ncols(),
+                  lambda i, j: 2 * ((A[i, j] - l) / (u - l)) - 1)
+
+def objective_matrix(A,g,r,lda):
+    """Making the objective function"""
+    C = matrix(RDF, A.nrows()*A.ncols()+1, A.nrows()*A.ncols()+1,
+           lambda i, j: lda*cost_function_f(A,i,j,r))
+
+    for i in range(len(g)):
+        C[i+1,0] += g[i]
+        C[0,i+1] += g[i]
+    return C
+
+def cost_function_f(A,i,j,r):
+    """Assigns a cost value based on the adjacency of two pixels"""
+    if i==0 or j==0:
+        return 0
+    ci = index_x_to_column_of_A(A,i-1)
+    ri = index_x_to_row_of_A(A,i-1)
+    cj = index_x_to_column_of_A(A,j-1)
+    rj = index_x_to_row_of_A(A,j-1)
+    if max(abs(ci-cj),abs(ri-rj))<=r:
+        return 1
+    return 0
+
+def index_x_to_column_of_A(A,p):
+    """Takes the index of x and returns the corresponding column coordinate of A"""
+    return p % A.ncols()
+
+def index_x_to_row_of_A(A,p):
+    """Takes the index of x and returns the corresponding row coordinate of A"""
+    return (p - (p % A.ncols())) / A.ncols()
+
 def run_csdp(filename, solfile):
     """Run CSDP and return True on success, False on failure.
 
@@ -53,7 +225,6 @@ def run_csdp(filename, solfile):
         return False
 
     return True
-
 
 def read_csdp_solution(filename, block_sizes):
     """Return matrices comprising solution of problem in CSDP format.
@@ -109,6 +280,10 @@ def read_csdp_solution(filename, block_sizes):
                 ret[block][i, j] = ret[block][j, i] = RDF(words[4])
 
     return ret
+
+
+
+
 
 
 def float_sos(p):
@@ -190,180 +365,6 @@ def float_sos(p):
     vx = vector(PR, foo)
 
     return list(U.transpose() * vx)
-
-
-def normalize_matrix(A):
-    """Normalize matrix elements to [-1, 1]."""
-
-    l = min(A.list())
-    u = max(A.list())
-
-    if l == u:
-        if l <= 127:
-            return matrix(RDF, A.nrows(), A.ncols(),
-                          lambda i, j: -1)
-        else:
-            return matrix(RDF, A.nrows(), A.ncols(),
-                          lambda i, j: 1)
-    
-    return matrix(RDF, A.nrows(), A.ncols(),
-                  lambda i, j: 2 * ((A[i, j] - l) / (u - l)) - 1)
-
-def objective_matrix(A,g,r,lda):
-    """Making the objective function"""
-    C = matrix(RDF, A.nrows()*A.ncols()+1, A.nrows()*A.ncols()+1,
-           lambda i, j: lda*cost_function_f(A,i,j,r))
-
-    for i in range(len(g)):
-        C[i+1,0] += g[i]
-        C[0,i+1] += g[i]
-    return C
-
-def index_x_to_column_of_A(A,p):
-    """Takes the index of x and returns the corresponding column coordinate of A"""
-    return p % A.ncols()
-
-
-def index_x_to_row_of_A(A,p):
-    """Takes the index of x and returns the corresponding row coordinate of A"""
-    return (p - (p % A.ncols())) / A.ncols()
-
-def cost_function_f(A,i,j,r):
-    """Assigns a cost value based on the adjacency of two pixels"""
-    if i==0 or j==0:
-        return 0
-    ci = index_x_to_column_of_A(A,i-1)
-    ri = index_x_to_row_of_A(A,i-1)
-    cj = index_x_to_column_of_A(A,j-1)
-    rj = index_x_to_row_of_A(A,j-1)
-    if max(abs(ci-cj),abs(ri-rj))<=r:
-        return 1
-    return 0
-
-def sdp_filter(in_filename, out_filename, lda, r, block_size = 10,
-               border_size = 2, nrounds = 30):
-    """Apply deblurring sdp filter to image.
-
-    INPUT:
-
-    - in_filename -- name of input image.
-
-    - out_filename -- name of output image.
-
-    - lda -- lambda parameter.
-
-    - r -- pixels (a, b) and (ap, bp) are considered neighbors if 
-      max { |a - ap|, |b - bp| } <= r.
-
-    - block_size -- size of block for image segmentation, in number of
-      pixels.
-
-    - border_size -- size of border around a block, in number of
-      pixels.
-      --> CAN NOT BE BIGGER THAN BLOCK_SIZE!
-
-    - nrounds -- how many times the randomized rounding procedure
-      should be run.
-
-    """
-    # Read the image. The matrix returned has real numbers in the
-    # interval [0, 255].
-    A = matrix(RDF, imread(in_filename, flatten = True))
-
-    # Matrix with resulting binary image, to be filled by you.
-    R = matrix(ZZ, A.nrows(), A.ncols())
-    
-    ########
-    #
-    # Here should come your code. It should assemble the final image
-    # in the matrix R. Each pixel has a value of either 0 (black) or
-    # 255 (white).
-    #
-    # IMPORTANT:
-    #
-    # Recall that the matrix A you read has numbers in [0, 255]. Our
-    # approach expects numbers in the interval [-1, 1]. To get that,
-    # you normalize each block before processing it. If B is the
-    # block, use the function normalize matrix:
-    #
-    # C = normalize_matrix(B)
-    # 
-    ########
-
-    # Divide the matrix into 10x10 blocks. If this is not possible, first remove some rows/columns at the edges.
-    A = make_matrix_size_divisible_by_block_size(A)
-    amount_of_hblocks = A.ncols() / block_size
-    amount_of_vblocks = A.nrows() / block_size
-
-    # For each block, save the specific block in B:
-    for hblock in range(amount_of_hblocks):
-        for vblock in range(amount_of_vblocks):
-            B = construct_current_block_matrix(A, hblock, vblock)
-
-            # Normalize the block
-
-            # Make a vector g with the values for each pixel
-
-            # Choose lambda
-
-            # Construct the sdpa file containing the optimisation problem that has to be solved.
-
-            # Solve the problem with CSDP.
-
-            # Rewrite the solution X (if necessary)
-
-            # Decompose X in w and x_i (they are the rows of X.cholesky())
-
-            # Hyperplane rounding: choose z
-
-            # Hyperplane rounding: if w*z<0, make z=-z
-
-            # Hyperplane rounding: for each pixel in the inner block, set f_i = sgn(z*x_i) --> save this in R
-
-    # Save the final image.
-    imsave(out_filename, R)
-
-#TODO: juiste variabelen meegeven aan deze functie en uitleg bij zetten!
-def make_matrix_size_divisible_by_block_size(A):
-    if A.ncols() % 10 != 0:
-        extra_cols = A.ncols() % 10
-        remove_first_cols = floor(extra_cols/2.0)
-        remove_last_cols = extra_cols - remove_first_cols
-        A = A.delete_columns(range(remove_first_cols))
-        A = A.delete_columns(range(A.ncols()-remove_last_cols,A.ncols()))
-    if A.nrows() % 10 != 0:
-        extra_rows = A.nrows() % 10
-        remove_first_rows = floor(extra_rows / 2.0)
-        remove_last_rows = extra_rows - remove_first_rows
-        A = A.delete_rows(range(remove_first_rows))
-        A = A.delete_rows(range(A.nrows() - remove_last_rows, A.rows()))
-    return A
-
-#TODO: juiste variabelen meegeven aan deze functie en uitleg bij zetten!
-def construct_current_block_matrix(A, hblock, vblock):
-    B = matrix(RDF, block_size + 2 * border_size, block_size + 2 * border_size)
-    if vblock != 0 and vblock != amount_of_vblocks - 1 and hblock != 0 and hblock != amount_of_hblocks:
-        B[:, :] = A[vblock * block_size - border_size:(vblock + 1) * block_size + border_size,
-                  hblock * block_size - border_size:(hblock + 1) * block_size + border_size]
-    else:
-        B[border_size:border_size + block_size, border_size:border_size + block_size] = A[vblock * block_size:(vblock + 1) * block_size, hblock * block_size:(hblock + 1) * block_size]
-        if vblock == 0:
-            if hblock == 0:
-
-            elif hblock == amount_of_hblocks - 1:
-
-            else:
-
-        elif vblock == amount_of_vblocks - 1:
-            if hblock == 0:
-
-            elif hblock == amount_of_hblocks - 1:
-
-            else:
-
-        elif hblock == 0:
-
-        else:
 
 def interval_minimum(p, a, b, filename):
     """Write SDP whose optimal is minimum of p on [a, b].
