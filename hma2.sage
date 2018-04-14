@@ -24,7 +24,7 @@ from scipy.misc import imread, imsave
 
 
 def sdp_filter(in_filename, out_filename, lda, r, block_size=10,
-               border_size=2, nrounds=30):
+               border_size=3, nrounds=30):
     """Apply deblurring sdp filter to image.
 
     INPUT:
@@ -122,31 +122,88 @@ def make_matrix_size_divisible_by_block_size(A, block_size):
         A = A.delete_rows(range(A.nrows() - remove_last_rows, A.rows()))
     return A
 
-#TODO: juiste variabelen meegeven aan deze functie en uitleg bij zetten!
-def construct_current_block_matrix(A, hblock, vblock, block_size, border_size):
+def construct_current_block_matrix(A, hblock, vblock, block_size, border_size, amount_of_vblocks,
+                                   amount_of_hblocks):
+    """"Return the block matrix on which we're currently working (including the border)"""
     B = matrix(RDF, block_size + 2 * border_size, block_size + 2 * border_size)
-    if vblock != 0 and vblock != amount_of_vblocks - 1 and hblock != 0 and hblock != amount_of_hblocks:
+    if vblock != 0 and vblock != amount_of_vblocks - 1 and hblock != 0 and hblock != amount_of_hblocks - 1:
         B[:, :] = A[vblock * block_size - border_size:(vblock + 1) * block_size + border_size,
                   hblock * block_size - border_size:(hblock + 1) * block_size + border_size]
     else:
         B[border_size:border_size + block_size, border_size:border_size + block_size] = A[vblock * block_size:(vblock + 1) * block_size, hblock * block_size:(hblock + 1) * block_size]
-        if vblock == 0:
-            if hblock == 0:
-
-            elif hblock == amount_of_hblocks - 1:
-
+        if vblock == 0: #Highest block
+            #Middle of top border
+            for i in range(border_size, block_size+border_size):
+                B[0:border_size,i] = B[border_size,i]
+            #Middle of bottom border
+            B[block_size+border_size:block_size+2*border_size, border_size:block_size+border_size] = A[(vblock + 1) * block_size:(vblock + 1) * block_size + border_size, hblock * block_size:(hblock + 1) * block_size]
+            if hblock == 0: #Most left block
+                #Entire left border
+                for i in range(block_size + 2 * border_size):
+                    B[i, 0:border_size] = B[i, border_size]
+                #Middle + bottom of right border
+                B[border_size:block_size+2*border_size,block_size+border_size:block_size+2*border_size] = A[vblock * block_size:(vblock + 1) * block_size + border_size,(hblock+1)*block_size:(hblock+1)*block_size+border_size]
+                #Top of right border
+                for i in range(block_size+border_size, block_size+2*border_size):
+                    B[0:border_size,i] = B[border_size,i]
+            elif hblock == amount_of_hblocks - 1: #Most right block
+                #Entire right border
+                for i in range(block_size + 2 * border_size):
+                    B[i, block_size+border_size:block_size+2*border_size] = B[i, block_size+border_size-1]
+                #Middle + bottom of left border
+                B[border_size:block_size+2*border_size,0:border_size] = A[vblock * block_size:(vblock + 1) * block_size + border_size,hblock*block_size-border_size:hblock*block_size]
+                #Top of left border
+                for i in range(border_size):
+                    B[0:border_size,i] = B[border_size,i]
             else:
-
+                # Middle + bottom of left border
+                B[border_size:block_size + 2 * border_size, 0:border_size] = A[vblock * block_size:(vblock + 1) * block_size + border_size,hblock * block_size - border_size:hblock * block_size]
+                # Top of left border
+                for i in range(border_size):
+                    B[0:border_size, i] = B[border_size, i]
+                # Middle + bottom of right border
+                B[border_size:block_size + 2 * border_size, block_size + border_size:block_size + 2 * border_size] = A[vblock * block_size:(vblock + 1) * block_size + border_size,(hblock + 1) * block_size:(hblock + 1) * block_size + border_size]
+                # Top of right border
+                for i in range(block_size + border_size, block_size + 2 * border_size):
+                    B[0:border_size, i] = B[border_size, i]
         elif vblock == amount_of_vblocks - 1:
+            # Middle of bottom border
+            for i in range(border_size, block_size + border_size):
+                B[block_size+border_size:block_size+2*border_size, i] = B[block_size+border_size-1, i]
+            # Middle of top border
+            B[0:border_size, border_size:block_size + border_size] = A[vblock * block_size-border_size:vblock * block_size, hblock * block_size:(hblock + 1) * block_size]
             if hblock == 0:
-
+                # Entire left border
+                for i in range(block_size + 2 * border_size):
+                    B[i, 0:border_size] = B[i, border_size]
+                # Middle + top of right border
+                B[0:block_size + border_size, block_size + border_size:block_size + 2 * border_size] = A[vblock * block_size-border_size:(vblock + 1) * block_size, (hblock + 1) * block_size:(hblock + 1) * block_size + border_size]
+                # Bottom of right border
+                for i in range(block_size + border_size, block_size + 2 * border_size):
+                    B[block_size+border_size:block_size+2*border_size, i] = B[block_size+border_size-1, i]
             elif hblock == amount_of_hblocks - 1:
-
+                # Entire right border
+                for i in range(block_size + 2 * border_size):
+                    B[i, block_size + border_size:block_size + 2 * border_size] = B[i, block_size + border_size - 1]
+                # Middle + top of left border
+                B[0:block_size + border_size, 0:border_size] = A[vblock * block_size - border_size:(vblock + 1) * block_size, hblock * block_size - border_size:hblock * block_size]
+                # Bottom of left border
+                for i in range(border_size):
+                    B[block_size+border_size:block_size+2*border_size, i] = B[block_size+border_size-1, i]
             else:
-
+                # Middle + top of left border
+                B[0:block_size + border_size, 0:border_size] = A[vblock * block_size - border_size:(vblock + 1) * block_size, hblock * block_size - border_size:hblock * block_size]
+                # Bottom of left border
+                for i in range(border_size):
+                    B[block_size+border_size:block_size+2*border_size, i] = B[block_size+border_size-1, i]
+                # Middle + top of right border
+                B[0:block_size + border_size, block_size + border_size:block_size + 2 * border_size] = A[vblock * block_size-border_size:(vblock + 1) * block_size, (hblock + 1) * block_size:(hblock + 1) * block_size + border_size]
+                # Bottom of right border
+                for i in range(block_size + border_size, block_size + 2 * border_size):
+                    B[block_size+border_size:block_size+2*border_size, i] = B[block_size+border_size-1, i]
         elif hblock == 0:
 
-        else:
+        else: #This means hblock == amount_of_hblocks - 1
 
 def normalize_matrix(A):
     """Normalize matrix elements to [-1, 1]."""
