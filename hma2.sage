@@ -74,14 +74,14 @@ def sdp_filter(in_filename, out_filename, lda, r, block_size=10,
     ########
 
     # Divide the matrix into 10x10 blocks. If this is not possible, first remove some rows/columns at the edges.
-    A = make_matrix_size_divisible_by_block_size(A)
+    A = make_matrix_size_divisible_by_block_size(A, block_size)
     amount_of_hblocks = A.ncols() / block_size
     amount_of_vblocks = A.nrows() / block_size
 
     # For each block, save the specific block in B:
     for hblock in range(amount_of_hblocks):
         for vblock in range(amount_of_vblocks):
-            B = construct_current_block_matrix(A, hblock, vblock)
+            B = construct_current_block_matrix(A, hblock, vblock, block_size, border_size)
 
             # Normalize the block
 
@@ -106,16 +106,16 @@ def sdp_filter(in_filename, out_filename, lda, r, block_size=10,
     # Save the final image.
     imsave(out_filename, R)
 
-#TODO: juiste variabelen meegeven aan deze functie en uitleg bij zetten!
-def make_matrix_size_divisible_by_block_size(A):
-    if A.ncols() % 10 != 0:
-        extra_cols = A.ncols() % 10
+def make_matrix_size_divisible_by_block_size(A, block_size):
+    """Remove rows and columns(if necessary) of matrix A to be able to divide it in blocks"""
+    if A.ncols() % block_size != 0:
+        extra_cols = A.ncols() % block_size
         remove_first_cols = floor(extra_cols/2.0)
         remove_last_cols = extra_cols - remove_first_cols
         A = A.delete_columns(range(remove_first_cols))
         A = A.delete_columns(range(A.ncols()-remove_last_cols,A.ncols()))
-    if A.nrows() % 10 != 0:
-        extra_rows = A.nrows() % 10
+    if A.nrows() % block_size != 0:
+        extra_rows = A.nrows() % block_size
         remove_first_rows = floor(extra_rows / 2.0)
         remove_last_rows = extra_rows - remove_first_rows
         A = A.delete_rows(range(remove_first_rows))
@@ -123,7 +123,7 @@ def make_matrix_size_divisible_by_block_size(A):
     return A
 
 #TODO: juiste variabelen meegeven aan deze functie en uitleg bij zetten!
-def construct_current_block_matrix(A, hblock, vblock):
+def construct_current_block_matrix(A, hblock, vblock, block_size, border_size):
     B = matrix(RDF, block_size + 2 * border_size, block_size + 2 * border_size)
     if vblock != 0 and vblock != amount_of_vblocks - 1 and hblock != 0 and hblock != amount_of_hblocks:
         B[:, :] = A[vblock * block_size - border_size:(vblock + 1) * block_size + border_size,
