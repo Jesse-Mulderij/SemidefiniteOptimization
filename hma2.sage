@@ -201,9 +201,39 @@ def construct_current_block_matrix(A, hblock, vblock, block_size, border_size, a
                 # Bottom of right border
                 for i in range(block_size + border_size, block_size + 2 * border_size):
                     B[block_size+border_size:block_size+2*border_size, i] = B[block_size+border_size-1, i]
-        elif hblock == 0:
-
+        elif hblock == 0: #Now vblock != 0 and vblock != amount_of_vblocks - 1
+            # Middle of left border
+            for i in range(border_size, block_size+border_size):
+                B[i,0:border_size] = B[i,border_size]
+            # Middle of right border
+            B[border_size:block_size+border_size, block_size+border_size:block_size+2*border_size] = A[vblock * block_size:(vblock + 1) * block_size, (hblock + 1) * block_size:(hblock + 1) * block_size + border_size]
+            # Middle + right of top border
+            B[0:border_size, border_size:block_size + 2 * border_size] = A[vblock * block_size - border_size:vblock * block_size, hblock * block_size:(hblock + 1) * block_size + border_size]
+            # Left of top border
+            for i in range(border_size):
+                B[i, 0:border_size] = B[i, border_size]
+            # Middle + right of bottom border
+            B[block_size + border_size:block_size + 2 * border_size, border_size:block_size + 2 * border_size] = A[(vblock + 1) * block_size:(vblock + 1) * block_size + border_size, hblock * block_size:(hblock + 1) * block_size + border_size]
+            # Left of bottom border
+            for i in range(block_size + border_size, block_size + 2 * border_size):
+                B[i, 0:border_size] = B[i, border_size]
         else: #This means hblock == amount_of_hblocks - 1
+            # Middle of right border
+            for i in range(border_size, block_size + border_size):
+                B[i, block_size + border_size:block_size + 2 * border_size] = B[i, block_size + border_size - 1]
+            # Middle of left border
+            B[border_size:block_size + border_size, 0:border_size] = A[vblock * block_size:(vblock + 1) * block_size, hblock * block_size - border_size:hblock * block_size]
+            # Middle + left of top border
+            B[0:border_size, 0:block_size + border_size] = A[vblock * block_size - border_size:vblock * block_size, hblock * block_size - border_size:(hblock + 1) * block_size]
+            # Right of top border
+            for i in range(border_size):
+                B[i, block_size + border_size:block_size + 2 * border_size] = B[i, block_size + border_size - 1]
+            # Middle + left of bottom border
+            B[block_size + border_size:block_size + 2 * border_size, 0:block_size + border_size] = A[(vblock + 1) * block_size:(vblock + 1) * block_size + border_size, hblock * block_size - border_size:(hblock + 1) * block_size]
+            # Right of bottom border
+            for i in range(block_size + border_size, block_size + 2 * border_size):
+                B[i, block_size + border_size:block_size + 2 * border_size] = B[i, block_size + border_size - 1]
+    return B
 
 def normalize_matrix(A):
     """Normalize matrix elements to [-1, 1]."""
