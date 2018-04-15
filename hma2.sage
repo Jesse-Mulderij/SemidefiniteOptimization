@@ -84,10 +84,15 @@ def sdp_filter(in_filename, out_filename, lda, r, block_size=10,
             B = construct_current_block_matrix(A, hblock, vblock, block_size, border_size)
 
             # Normalize the block
-
+            B_normalized = normalize_matrix(B)
             # Make a vector g with the values for each pixel
+            for i in range(enumerate(B_normalized)):
+                g[i]=B_normalized[i]
 
-            # Choose lambda
+            # Construct the objective_matrix and the constraint matrices
+            C = construct_objective_matrix(B_normalized,g,r,lda)
+            #for i in range(B_normalized.ncols()):
+            #    E[i]=construct_constraint_matrix_E_ii(B_normalized,i)
 
             # Construct the sdpa file containing the optimisation problem that has to be solved.
 
@@ -252,7 +257,7 @@ def normalize_matrix(A):
     return matrix(RDF, A.nrows(), A.ncols(),
                   lambda i, j: 2 * ((A[i, j] - l) / (u - l)) - 1)
 
-def objective_matrix(A,g,r,lda):
+def construct_objective_matrix(A,g,r,lda):
     """Making the objective function"""
     C = matrix(RDF, A.nrows()*A.ncols()+1, A.nrows()*A.ncols()+1,
            lambda i, j: lda*cost_function_f(A,i,j,r))
@@ -261,6 +266,12 @@ def objective_matrix(A,g,r,lda):
         C[i+1,0] += g[i]
         C[0,i+1] += g[i]
     return C
+
+def construct_constraint_matrix_E_ii(A,k):
+    #constructs the constraint matrices E_ii, this might be useless because the forms are so simple they can just as easily be implemented during the file writer
+    E_ii = matrix(RDF, A.nrows(), A.ncols(),
+           lambda i, j: i==k&j==k)
+    return E_ii
 
 def cost_function_f(A,i,j,r):
     """Assigns a cost value based on the adjacency of two pixels"""
@@ -281,6 +292,10 @@ def index_x_to_column_of_A(A,p):
 def index_x_to_row_of_A(A,p):
     """Takes the index of x and returns the corresponding row coordinate of A"""
     return (p - (p % A.ncols())) / A.ncols()
+
+def write_csdp_input():
+    #writes a .sdpa file to enable the solver to solve the SDP problem
+    
 
 def run_csdp(filename, solfile):
     """Run CSDP and return True on success, False on failure.
