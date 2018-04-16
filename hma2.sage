@@ -75,19 +75,19 @@ def sdp_filter(in_filename, out_filename, lda, r, block_size=10,
 
     # Divide the matrix into 10x10 blocks. If this is not possible, first remove some rows/columns at the edges.
     A = make_matrix_size_divisible_by_block_size(A, block_size)
+    R = make_matrix_size_divisible_by_block_size(R, block_size)
     amount_of_hblocks = A.ncols() / block_size
     amount_of_vblocks = A.nrows() / block_size
 
     # For each block, save the specific block in B:
     for hblock in range(amount_of_hblocks):
         for vblock in range(amount_of_vblocks):
-            B = construct_current_block_matrix(A, hblock, vblock, block_size, border_size)
+            B = construct_current_block_matrix(A, hblock, vblock, block_size, border_size, amount_of_vblocks, amount_of_hblocks)
 
             # Normalize the block
             B_normalized = normalize_matrix(B)
             # Make a vector g with the values for each pixel
-            for i in range(enumerate(B_normalized)):
-                g[i]=B_normalized[i]
+            g = B_normalized.list()
 
             # Construct the objective_matrix and the constraint matrices
             C = construct_objective_matrix(B_normalized,g,r,lda)
@@ -109,7 +109,7 @@ def sdp_filter(in_filename, out_filename, lda, r, block_size=10,
             # Hyperplane rounding: for each pixel in the inner block, set f_i = sgn(z*x_i) --> save this in R
 
     # Save the final image.
-    imsave(out_filename, R)
+    # imsave(out_filename, R)
 
 def make_matrix_size_divisible_by_block_size(A, block_size):
     """Remove rows and columns(if necessary) of matrix A to be able to divide it in blocks"""
@@ -124,7 +124,7 @@ def make_matrix_size_divisible_by_block_size(A, block_size):
         remove_first_rows = floor(extra_rows / 2.0)
         remove_last_rows = extra_rows - remove_first_rows
         A = A.delete_rows(range(remove_first_rows))
-        A = A.delete_rows(range(A.nrows() - remove_last_rows, A.rows()))
+        A = A.delete_rows(range(A.nrows() - remove_last_rows, A.nrows()))
     return A
 
 def construct_current_block_matrix(A, hblock, vblock, block_size, border_size, amount_of_vblocks,
@@ -293,7 +293,7 @@ def index_x_to_row_of_A(A,p):
     """Takes the index of x and returns the corresponding row coordinate of A"""
     return (p - (p % A.ncols())) / A.ncols()
 
-def write_csdp_input():
+#def write_csdp_input():
     #writes a .sdpa file to enable the solver to solve the SDP problem
     
 
