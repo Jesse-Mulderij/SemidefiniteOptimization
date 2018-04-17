@@ -90,7 +90,7 @@ def sdp_filter(in_filename, out_filename, lda, r, block_size=10,
             g = B_normalized.list()
 
             # Construct the objective_matrix and the constraint matrices
-            C = construct_objective_matrix(B_normalized,g,r,lda)
+            C = construct_objective_matrix(B_normalized, g, r, lda)
             #for i in range(B_normalized.ncols()):
             #    E[i]=construct_constraint_matrix_E_ii(B_normalized,i)
 
@@ -98,18 +98,25 @@ def sdp_filter(in_filename, out_filename, lda, r, block_size=10,
 
             # Solve the problem with CSDP.
 
-            # Rewrite the solution X (if necessary)
+            # Save the solution in matrix X (zie de functie float_sos!!)
 
             # Decompose X in w and x_i (they are the rows of X.cholesky())
+            # w = vector(X.cholesky()[0,:])
+            # Xi = matrix(RDF, len(g)+1, len(g))
+            # for i in range(len(g)):
+            #     Xi[:,i] = vector(X.cholesky()[i+1,:])
 
-            # Hyperplane rounding: choose z
+            # nrounds times hyperplane rounding:
+            # f = hyperplane_rounding(B_normalized, g, w, Xi, lda, r, nrounds)
 
-            # Hyperplane rounding: if w*z<0, make z=-z
-
-            # Hyperplane rounding: for each pixel in the inner block, set f_i = sgn(z*x_i) --> save this in R
+            # Save solution in R
+            # sol_block_with_border = matrix(RDF, block_size + 2 * border_size, block_size + 2 * border_size, f)
+            # sol_block_without_border = sol_block_with_border[border_size:block_size+border_size, border_size:block_size+border_size]
+            # R[vblock * block_size:(vblock + 1) * block_size, hblock * block_size:(hblock + 1) * block_size] = sol_block_without_border
 
     # Save the final image.
     # imsave(out_filename, R)
+
 
 def make_matrix_size_divisible_by_block_size(A, block_size):
     """Remove rows and columns(if necessary) of matrix A to be able to divide it in blocks"""
@@ -277,13 +284,19 @@ def cost_function_f(A,i,j,r):
     """Assigns a cost value based on the adjacency of two pixels"""
     if i==0 or j==0:
         return 0
-    ci = index_x_to_column_of_A(A,i-1)
-    ri = index_x_to_row_of_A(A,i-1)
-    cj = index_x_to_column_of_A(A,j-1)
-    rj = index_x_to_row_of_A(A,j-1)
-    if max(abs(ci-cj),abs(ri-rj))<=r:
+    if are_adjacent(A,i,j,r):
         return 1
     return 0
+
+def are_adjacent(A,i,j,r):
+    """Checks if pixels i and j are adjacent in A"""
+    ci = index_x_to_column_of_A(A, i - 1)
+    ri = index_x_to_row_of_A(A, i - 1)
+    cj = index_x_to_column_of_A(A, j - 1)
+    rj = index_x_to_row_of_A(A, j - 1)
+    if max(abs(ci - cj), abs(ri - rj)) <= r:
+        return True
+    return False
 
 def index_x_to_column_of_A(A,p):
     """Takes the index of x and returns the corresponding column coordinate of A"""
@@ -296,7 +309,6 @@ def index_x_to_row_of_A(A,p):
 #def write_csdp_input():
     #writes a .sdpa file to enable the solver to solve the SDP problem
     
-
 def run_csdp(filename, solfile):
     """Run CSDP and return True on success, False on failure.
 
@@ -383,7 +395,36 @@ def read_csdp_solution(filename, block_sizes):
 
     return ret
 
+def hyperplane_rounding(A, g, w, Xi, lda, r, nrounds):
+    """Performs nrounds rounds of hyperplane rounding and returns the best solution"""
+    for nround in range(nrounds):
+        z = vector(RR, [normalvariate(0, 1) for i in range(len(g) + 1)])
+        if z * w < 0:
+            z = -z
 
+        # For each pixel set f_i = sgn(z*x_i)
+        f = [0] * len(g)
+        for i in range(len(g)):
+            f[i] = sign(z * vector(Xi[:, i]))
+
+        # Compute the objective value
+        current_objective = 0
+        for i in range(len(g)):
+            current_objective += 2*f[i]*g[i]
+        for i in range(len(g)):
+            for j in range(len(g)):
+                if are_adjacent(A, i, j, r):
+                    current_objective += lda * f[i] * f[j]
+
+        #If the objective value is better than before, keep this solution
+        if nround == 0:
+            objective_value = current_objective
+        else:
+            if current_objective > objective_value:
+                objective_value = current_objective
+                f_max = f
+
+    return f_max
 
 
 
