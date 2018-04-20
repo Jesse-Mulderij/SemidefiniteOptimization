@@ -86,6 +86,7 @@ def sdp_filter(in_filename, out_filename, lda, r, block_size=10,
 
             # Normalize the block
             B_normalized = normalize_matrix(B)
+
             # Make a vector g with the values for each pixel
             g = B_normalized.list()
 
@@ -94,8 +95,10 @@ def sdp_filter(in_filename, out_filename, lda, r, block_size=10,
 
             # Construct the sdpa file containing the optimisation problem that has to be solved.
             write_csdp_input(g,C)
+
             # Solve the problem with CSDP.
             run_csdp('picture_recovery.sdpa','recovered_picture.sol')
+
             # Save the solution in matrix X (zie de functie float_sos!!)
             sol = read_csdp_solution('recovered_picture.sol',[len(g)+1])
             X = sol[0]
@@ -113,6 +116,11 @@ def sdp_filter(in_filename, out_filename, lda, r, block_size=10,
             sol_block_with_border = matrix(RDF, block_size + 2 * border_size, block_size + 2 * border_size, f)
             sol_block_without_border = sol_block_with_border[border_size:block_size+border_size, border_size:block_size+border_size]
             R[vblock * block_size:(vblock + 1) * block_size, hblock * block_size:(hblock + 1) * block_size] = sol_block_without_border
+            print 'innerloop progress'
+            print (vblock+1)/amount_of_vblocks
+        # percentage toward completion
+        print 'total progress'
+        print (hblock+1) / amount_of_hblocks
 
     # Save the final image.
     imsave(out_filename, R)
@@ -309,11 +317,11 @@ def write_csdp_input(g,C):
     outfile.write('1 '*(len(g)+1))
     outfile.write('\n')
     for i in range(len(g)+1):
-        outfile.write('%d 1 %d %d 1\n' % (i,i,i))
+        outfile.write('%d 1 %d %d 1\n' % (i+1,i+1,i+1))
     for i in range(len(g)+1):
         for j in range(i,len(g)+1):
             if C[i,j]!=0:
-                outfile.write('0 1 %d %d %d\n' %(i,j,C[i,j]))
+                outfile.write('0 1 %d %d %f\n' %(i+1,j+1,C[i,j]))
     outfile.close()
 
 
@@ -427,6 +435,7 @@ def hyperplane_rounding(A, g, w, Xi, lda, r, nrounds):
         #If the objective value is better than before, keep this solution
         if nround == 0:
             objective_value = current_objective
+            f_max = f
         else:
             if current_objective > objective_value:
                 objective_value = current_objective
