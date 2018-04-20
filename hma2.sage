@@ -91,31 +91,31 @@ def sdp_filter(in_filename, out_filename, lda, r, block_size=10,
 
             # Construct the objective_matrix and the constraint matrices
             C = construct_objective_matrix(B_normalized, g, r, lda)
-            #for i in range(B_normalized.ncols()):
-            #    E[i]=construct_constraint_matrix_E_ii(B_normalized,i)
 
             # Construct the sdpa file containing the optimisation problem that has to be solved.
-
+            write_csdp_input(g,C)
             # Solve the problem with CSDP.
-
+            run_csdp('picture_recovery.sdpa','recovered_picture.sol')
             # Save the solution in matrix X (zie de functie float_sos!!)
+            sol = read_csdp_solution('recovered_picture.sol',[len(g)+1])
+            X = sol[0]
 
             # Decompose X in w and x_i (they are the rows of X.cholesky())
-            # w = vector(X.cholesky()[0,:])
-            # Xi = matrix(RDF, len(g)+1, len(g))
-            # for i in range(len(g)):
-            #     Xi[:,i] = vector(X.cholesky()[i+1,:])
+            w = vector(X.cholesky()[0,:])
+            Xi = matrix(RDF, len(g)+1, len(g))
+            for i in range(len(g)):
+                Xi[:,i] = vector(X.cholesky()[i+1,:])
 
             # nrounds times hyperplane rounding:
-            # f = hyperplane_rounding(B_normalized, g, w, Xi, lda, r, nrounds)
+            f = hyperplane_rounding(B_normalized, g, w, Xi, lda, r, nrounds)
 
             # Save solution in R
-            # sol_block_with_border = matrix(RDF, block_size + 2 * border_size, block_size + 2 * border_size, f)
-            # sol_block_without_border = sol_block_with_border[border_size:block_size+border_size, border_size:block_size+border_size]
-            # R[vblock * block_size:(vblock + 1) * block_size, hblock * block_size:(hblock + 1) * block_size] = sol_block_without_border
+            sol_block_with_border = matrix(RDF, block_size + 2 * border_size, block_size + 2 * border_size, f)
+            sol_block_without_border = sol_block_with_border[border_size:block_size+border_size, border_size:block_size+border_size]
+            R[vblock * block_size:(vblock + 1) * block_size, hblock * block_size:(hblock + 1) * block_size] = sol_block_without_border
 
     # Save the final image.
-    # imsave(out_filename, R)
+    imsave(out_filename, R)
 
 
 def make_matrix_size_divisible_by_block_size(A, block_size):
@@ -274,12 +274,6 @@ def construct_objective_matrix(A,g,r,lda):
         C[0,i+1] += g[i]
     return C
 
-def construct_constraint_matrix_E_ii(A,k):
-    #constructs the constraint matrices E_ii, this might be useless because the forms are so simple they can just as easily be implemented during the file writer
-    E_ii = matrix(RDF, A.nrows(), A.ncols(),
-           lambda i, j: i==k&j==k)
-    return E_ii
-
 def cost_function_f(A,i,j,r):
     """Assigns a cost value based on the adjacency of two pixels"""
     if i==0 or j==0:
@@ -306,9 +300,23 @@ def index_x_to_row_of_A(A,p):
     """Takes the index of x and returns the corresponding row coordinate of A"""
     return (p - (p % A.ncols())) / A.ncols()
 
-#def write_csdp_input():
+def write_csdp_input(g,C):
     #writes a .sdpa file to enable the solver to solve the SDP problem
-    
+    outfile = open("picture_recovery.sdpa",'w')
+    outfile.write('%d \n' % (len(g)+1))
+    outfile.write('1\n')
+    outfile.write('%d \n' % (len(g)+1))
+    outfile.write('1 '*(len(g)+1))
+    outfile.write('\n')
+    for i in range(len(g)+1):
+        outfile.write('%d 1 %d %d 1\n' % (i,i,i))
+    for i in range(len(g)+1):
+        for j in range(i,len(g)+1):
+            if C[i,j]!=0:
+                outfile.write('0 1 %d %d %d\n' %(i,j,C[i,j]))
+    outfile.close()
+
+
 def run_csdp(filename, solfile):
     """Run CSDP and return True on success, False on failure.
 
