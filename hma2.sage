@@ -20,6 +20,8 @@ write a post on our ELO forum.
 """
 
 import subprocess
+import time
+import numpy
 from scipy.misc import imread, imsave
 
 
@@ -94,7 +96,7 @@ def sdp_filter(in_filename, out_filename, lda, r, block_size=10,
             C = construct_objective_matrix(B_normalized, g, r, lda)
 
             # Construct the sdpa file containing the optimisation problem that has to be solved.
-            write_csdp_input(g,C)
+            write_csdp_input_image(g,C)
 
             # Solve the problem with CSDP.
             run_csdp('picture_recovery.sdpa','recovered_picture.sol')
@@ -110,17 +112,16 @@ def sdp_filter(in_filename, out_filename, lda, r, block_size=10,
                 Xi[:,i] = vector(X.cholesky()[i+1,:])
 
             # nrounds times hyperplane rounding:
-            f = hyperplane_rounding(B_normalized, g, w, Xi, lda, r, nrounds)
+            f = hyperplane_rounding(C, g, X, w, Xi, nrounds)
 
             # Save solution in R
             sol_block_with_border = matrix(RDF, block_size + 2 * border_size, block_size + 2 * border_size, f)
             sol_block_without_border = sol_block_with_border[border_size:block_size+border_size, border_size:block_size+border_size]
             R[vblock * block_size:(vblock + 1) * block_size, hblock * block_size:(hblock + 1) * block_size] = sol_block_without_border
-            print 'innerloop progress'
-            print (vblock+1)/amount_of_vblocks
+            print 'Progress:'
+            print ((hblock*amount_of_vblocks)+vblock+1.0)/(amount_of_vblocks*amount_of_hblocks)
         # percentage toward completion
-        print 'total progress'
-        print (hblock+1) / amount_of_hblocks
+
 
     # Save the final image.
     imsave(out_filename, R)
@@ -308,7 +309,7 @@ def index_x_to_row_of_A(A,p):
     """Takes the index of x and returns the corresponding row coordinate of A"""
     return (p - (p % A.ncols())) / A.ncols()
 
-def write_csdp_input(g,C):
+def write_csdp_input_image(g,C):
     #writes a .sdpa file to enable the solver to solve the SDP problem
     outfile = open("picture_recovery.sdpa",'w')
     outfile.write('%d \n' % (len(g)+1))
@@ -411,7 +412,7 @@ def read_csdp_solution(filename, block_sizes):
 
     return ret
 
-def hyperplane_rounding(A, g, w, Xi, lda, r, nrounds):
+def hyperplane_rounding(C, g,X, w, Xi, nrounds):
     """Performs nrounds rounds of hyperplane rounding and returns the best solution"""
     for nround in range(nrounds):
         z = vector(RR, [normalvariate(0, 1) for i in range(len(g) + 1)])
@@ -420,17 +421,17 @@ def hyperplane_rounding(A, g, w, Xi, lda, r, nrounds):
 
         # For each pixel set f_i = sgn(z*x_i)
         f = [0] * len(g)
+        zX = z*Xi
         for i in range(len(g)):
-            f[i] = sign(z * vector(Xi[:, i]))
+            f[i] = sign(zX[i])
+
+
 
         # Compute the objective value
-        current_objective = 0
-        for i in range(len(g)):
-            current_objective += 2*f[i]*g[i]
-        for i in range(len(g)):
-            for j in range(len(g)):
-                if are_adjacent(A, i, j, r):
-                    current_objective += lda * f[i] * f[j]
+        # current_objective = 0
+        F = Matrix([1]*(len(g)+1))
+        F[1:]=Matrix(f)
+        current_objective = numpy.trace(C*F.transpose()*F)
 
         #If the objective value is better than before, keep this solution
         if nround == 0:
@@ -543,8 +544,47 @@ def interval_minimum(p, a, b, filename):
     - filename -- name of file for SDPA output.
 
     """
+    if p.degree() % 2 == 0:
+        d = p.degree()/2
+        write_csdp_input_sos_even_deg(p,d)
+
+
+
     pass
 
+def write_csdp_input_sos_even_deg(p,d,a,b):
+    #writes a .sdpa file to enable the solver to solve the SDP problem
+    outfile = open("even_degree.sdpa",'w')
+    outfile.write('%d \n' % (d+1))
+    outfile.write('4\n')
+    outfile.write('%d %d %d %d \n' % (d+1),d,1,1 )
+
+    # right-hand side
+    for x in p.list():
+        outlfile.write('%d ' % x)
+
+    outfile.write('\n')
+
+    # objective matrix
+    outfile.write('0 3 1 1 1.0 \n 0 4 1 1 -1.0')
+
+    # constraint matrices
+    for i in range(d+1):
+        # first block
+        for j in range(d+1):
+            #dit moet nog:
+            outfile.write('%d 1 %d %d 1\n' % (i+1,j+1,j+1))
+
+        # second block
+        for j in range(d):
+            #dit moet nog:
+            outfile.write('%d 2 %d %d 1\n' % (i + 1, i + 1, i + 1))
+
+        # adding lambda in the first constraint matrix
+        if i==1:
+            outfile.write('1 3 1 1 1.0 \n 1 4 1 1 -1.0 \n')
+
+    outfile.close()
 
 # Local variables:
 # mode: python
