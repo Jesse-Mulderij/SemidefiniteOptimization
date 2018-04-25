@@ -546,46 +546,180 @@ def interval_minimum(p, a, b, filename):
     """
     if p.degree() % 2 == 0:
         d = p.degree()/2
-        write_csdp_input_sos_even_deg(p,d)
+        write_csdp_input_sos_even_deg(p, d, a, b, filename)
+    else:
+        d = (p.degree() - 1)/2
+        write_csdp_input_sos_odd_deg(p, d, a, b, filename)
 
-
-
-    pass
-
-def write_csdp_input_sos_even_deg(p,d,a,b):
+def write_csdp_input_sos_even_deg(p, d, a, b, filename):
     #writes a .sdpa file to enable the solver to solve the SDP problem
-    outfile = open("even_degree.sdpa",'w')
-    outfile.write('%d \n' % (d+1))
-    outfile.write('4\n')
-    outfile.write('%d %d %d %d \n' % (d+1),d,1,1 )
+    outfile = open(filename,'w')
+    outfile.write('%d \n' % (2*d+1))
+    outfile.write('3\n')
+    outfile.write('%d %d %d \n' % (d+1,d,-2) )
 
     # right-hand side
     for x in p.list():
-        outlfile.write('%d ' % x)
+        outfile.write('%f ' % x)
 
     outfile.write('\n')
 
     # objective matrix
-    outfile.write('0 3 1 1 1.0 \n 0 4 1 1 -1.0')
+    outfile.write('0 3 1 1 1.0 \n0 3 2 2 -1.0\n')
+
+    # adding lambda in the first constraint matrix
+    outfile.write('1 3 1 1 1.0 \n1 3 2 2 -1.0 \n')
 
     # constraint matrices
-    for i in range(d+1):
-        # first block
-        for j in range(d+1):
-            #dit moet nog:
-            outfile.write('%d 1 %d %d 1\n' % (i+1,j+1,j+1))
+    for i in range(2*d+1):
+        if i <= d:
+            # first block (left half)
+            row = 1
+            column = i+1
+            while column >= row:
+                outfile.write('%d 1 %d %d 1.0\n' % (i+1, row, column))
+                column -= 1
+                row += 1
+        else:
+            # first block (right half)
+            column = d+1
+            row = i+1-d
+            while column >= row:
+                outfile.write('%d 1 %d %d 1.0\n' % (i+1, row, column))
+                column -= 1
+                row += 1
 
         # second block
-        for j in range(d):
-            #dit moet nog:
-            outfile.write('%d 2 %d %d 1\n' % (i + 1, i + 1, i + 1))
-
-        # adding lambda in the first constraint matrix
-        if i==1:
-            outfile.write('1 3 1 1 1.0 \n 1 4 1 1 -1.0 \n')
+        if i < 2*d-1:
+            if i <= d-1:
+                row = 1
+                column = i + 1
+                while column >= row:
+                    outfile.write('%d 2 %d %d %f\n' % (i+1, row, column, -a*b))
+                    column -= 1
+                    row += 1
+            else:
+                column = d
+                row = i + 1 - (d - 1)
+                while column >= row:
+                    outfile.write('%d 2 %d %d %f\n' % (i+1, row, column, -a*b))
+                    column -= 1
+                    row += 1
+        if i >= 1 and i < 2*d:
+            if i <= d:
+                row = 1
+                column = i
+                while column >= row:
+                    outfile.write('%d 2 %d %d %f\n' % (i+1, row, column, a+b))
+                    column -= 1
+                    row += 1
+            else:
+                column = d
+                row = i - (d - 1)
+                while column >= row:
+                    outfile.write('%d 2 %d %d %f\n' % (i+1, row, column, a+b))
+                    column -= 1
+                    row += 1
+        if i >= 2 and i < 2*d + 1:
+            if i <= d+1:
+                row = 1
+                column = i - 1
+                while column >= row:
+                    outfile.write('%d 2 %d %d %d\n' % (i+1, row, column, -1))
+                    column -= 1
+                    row += 1
+            else:
+                column = d
+                row = i - 1 - (d - 1)
+                while column >= row:
+                    outfile.write('%d 2 %d %d %d\n' % (i+1, row, column, -1))
+                    column -= 1
+                    row += 1
 
     outfile.close()
 
-# Local variables:
-# mode: python
-# End:
+def write_csdp_input_sos_odd_deg(p, d, a, b, filename):
+    #writes a .sdpa file to enable the solver to solve the SDP problem
+    outfile = open(filename,'w')
+    outfile.write('%d \n' % (2*d+2))
+    outfile.write('3\n')
+    outfile.write('%d %d %d \n' % (d+1,d+1,-2))
+
+    # right-hand side
+    for x in p.list():
+        outfile.write('%f ' % x)
+
+    outfile.write('\n')
+
+    # objective matrix
+    outfile.write('0 3 1 1 1.0 \n0 3 2 2 -1.0\n')
+
+    # adding lambda in the first constraint matrix
+    outfile.write('1 3 1 1 1.0 \n1 3 2 2 -1.0 \n')
+
+    # constraint matrices
+    for i in range(2*d+2):
+        # first block
+        if i < 2*d+1:
+            if i <= d:
+                row = 1
+                column = i + 1
+                while column >= row:
+                    outfile.write('%d 1 %d %d %f\n' % (i+1, row, column, -a))
+                    column -= 1
+                    row += 1
+            else:
+                column = d + 1
+                row = i + 1 - d
+                while column >= row:
+                    outfile.write('%d 1 %d %d %f\n' % (i+1, row, column, -a))
+                    column -= 1
+                    row += 1
+        if i >= 1:
+            if i <= d + 1:
+                row = 1
+                column = i
+                while column >= row:
+                    outfile.write('%d 1 %d %d %d\n' % (i+1, row, column, 1))
+                    column -= 1
+                    row += 1
+            else:
+                column = d + 1
+                row = i - d
+                while column >= row:
+                    outfile.write('%d 1 %d %d %d\n' % (i+1, row, column, 1))
+                    column -= 1
+                    row += 1
+        # second block
+        if i < 2*d+1:
+            if i <= d:
+                row = 1
+                column = i + 1
+                while column >= row:
+                    outfile.write('%d 2 %d %d %f\n' % (i+1, row, column, b))
+                    column -= 1
+                    row += 1
+            else:
+                column = d + 1
+                row = i + 1 - d
+                while column >= row:
+                    outfile.write('%d 2 %d %d %f\n' % (i+1, row, column, b))
+                    column -= 1
+                    row += 1
+        if i >= 1:
+            if i <= d + 1:
+                row = 1
+                column = i
+                while column >= row:
+                    outfile.write('%d 2 %d %d %d\n' % (i+1, row, column, -1))
+                    column -= 1
+                    row += 1
+            else:
+                column = d + 1
+                row = i - d
+                while column >= row:
+                    outfile.write('%d 2 %d %d %d\n' % (i+1, row, column, -1))
+                    column -= 1
+                    row += 1
+
+    outfile.close()
